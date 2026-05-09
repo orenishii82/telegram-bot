@@ -1,9 +1,11 @@
 services:
   - type: web
-    name: telegram-assistant
-    env: python
+    name: telegram-bot
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     envVars:
       - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ALLOWED_USER_ID
         sync: false
