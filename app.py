@@ -1,24 +1,27 @@
 import os
-import threading
+import asyncio
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
 
-app = Flask(__name__)
+flask_app = Flask(__name__)
 
-# Your bot will be stored here
-telegram_app = None
-
-@app.route('/')
+@flask_app.route('/')
 def home():
     return "Bot is running!"
 
-@app.route('/health')
+@flask_app.route('/health')
 def health():
     return "OK"
 
-def run_telegram_bot():
-    global telegram_app
+async def run_flask(port: int):
+    config = Config()
+    config.bind = [f"0.0.0.0:{port}"]
+    await serve(flask_app, config)
+
+async def run_telegram_bot():
     TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
     if not TOKEN:
         print("ERROR: TELEGRAM_BOT_TOKEN not set")
@@ -31,20 +34,27 @@ def run_telegram_bot():
 
     async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_message = update.message.text
-        # Simple reply for now - we add OpenRouter next
+        # Simple reply for now - add OpenRouter next
         await update.message.reply_text(f"You said: {user_message}")
 
     telegram_app.add_handler(CommandHandler("start", start))
     telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Starting Telegram bot...")
-    telegram_app.run_polling()
+    async with telegram_app:
+        await telegram_app.start()
+        await telegram_app.updater.start_polling()
+        # Keep running until cancelled
+        await asyncio.Event().wait()
+        await telegram_app.updater.stop()
+        await telegram_app.stop()
+
+async def main():
+    port = int(os.environ.get("PORT", 5000))
+    await asyncio.gather(
+        run_flask(port),
+        run_telegram_bot(),
+    )
 
 if __name__ == "__main__":
-    # Start Telegram bot in background thread
-    bot_thread = threading.Thread(target=run_telegram_bot)
-    bot_thread.start()
-
-    # Start Flask web server (required for Render)
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    asyncio.run(main())
