@@ -21,6 +21,9 @@ async def telegram_main():
         print("ERROR: TELEGRAM_BOT_TOKEN not set")
         return
 
+    async with Application.builder().token(TOKEN).build() as temp:
+        await temp.bot.delete_webhook(drop_pending_updates=True)
+
     telegram_app = Application.builder().token(TOKEN).build()
 
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -37,7 +40,7 @@ async def telegram_main():
     async with telegram_app:
         await telegram_app.start()
         await telegram_app.updater.start_polling()
-        await asyncio.Event().wait()  # run forever
+        await asyncio.Event().wait()
         await telegram_app.updater.stop()
         await telegram_app.stop()
 
